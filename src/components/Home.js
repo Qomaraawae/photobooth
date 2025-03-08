@@ -8,7 +8,7 @@ function Home() {
     <PageTransition>
       <div className="min-h-screen bg-gradient-to-br from-rose-50 to-teal-50 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">Welcome to Photobooth</h1>
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">Welcome to my  Aesthetic Photobooth</h1>
           <p className="text-gray-600 mb-8">Capture beautiful moments with artistic filters</p>
           <div className="flex gap-4 justify-center">
             <Link
