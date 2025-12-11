@@ -79,234 +79,161 @@ function Camera() {
   }, [startCamera, stopCamera]);
 
   const takePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const context = canvasRef.current.getContext('2d');
-      const video = videoRef.current;
-  
-      // Ensure the canvas matches the video's dimensions
-      canvasRef.current.width = video.videoWidth;
-      canvasRef.current.height = video.videoHeight;
-  
-      if (filter !== 'none') {
-        context.filter = filter;
+  if (videoRef.current && canvasRef.current) {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+
+    // Gunakan ukuran video asli
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    ctx.filter = filter !== 'none' ? filter : 'none';
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const photoData = canvas.toDataURL('image/jpeg', 0.92);
+
+    if (collageMode) {
+      const layout = collageLayouts.find(l => l.value === collageLayout);
+      if (photos.length < layout.slots) {
+        setPhotos(prev => [...prev, { 
+          id: Date.now(), 
+          url: photoData, 
+          filter,
+          // Tambahkan info asli supaya lebih akurat
+          originalWidth: video.videoWidth,
+          originalHeight: video.videoHeight
+        }]);
       }
-  
-      // Draw the video frame onto the canvas
-      context.drawImage(video, 0, 0, canvasRef.current.width, canvasRef.current.height);
-      context.filter = 'none';
-  
-      const photoData = canvasRef.current.toDataURL('image/jpeg', 0.9);
-  
-      if (collageMode) {
-        // In collage mode, add to array of photos
-        const layout = collageLayouts.find(l => l.value === collageLayout);
-        if (photos.length < layout.slots) {
-          setPhotos(prevPhotos => [...prevPhotos, { id: Date.now(), url: photoData, filter }]);
-        }
-      } else {
-        // Save single photo to localStorage
-        const savedPhotos = JSON.parse(localStorage.getItem('photos') || '[]');
-        savedPhotos.push({ id: Date.now(), url: photoData });
-        localStorage.setItem('photos', JSON.stringify(savedPhotos));
-        // Set as current photo for single photo mode
-        setPhotos([{ id: Date.now(), url: photoData, filter }]);
-      }
+    } else {
+      // Single photo mode
+      const savedPhotos = JSON.parse(localStorage.getItem('photos') || '[]');
+      savedPhotos.unshift({ id: Date.now(), url: photoData });
+      localStorage.setItem('photos', JSON.stringify(savedPhotos));
+      setPhotos([{ id: Date.now(), url: photoData, filter }]);
     }
-  };
+  }
+};
 
   const downloadPhoto = () => {
-    if (photos.length > 0) {
-      if (collageMode && photos.length > 1) {
-        // For collage, we need to create a combined image
-        const collageCanvas = document.createElement('canvas');
-        const ctx = collageCanvas.getContext('2d');
-        
-        // Set size based on layout
-        let width, height;
-        if (collageLayout === '2x2') {
-          width = height = 1080; // Instagram standard size
-          collageCanvas.width = width;
-          collageCanvas.height = height;
-          
-          // Draw white background
-          ctx.fillStyle = 'white';
-          ctx.fillRect(0, 0, width, height);
-          
-          const imageSize = width / 2;
-          const positions = [
-            [0, 0], [imageSize, 0],
-            [0, imageSize], [imageSize, imageSize]
-          ];
-          
-          photos.forEach((photo, index) => {
-            if (index < 4) {
-              const img = new Image();
-              img.onload = () => {
-                ctx.save();
-                if (photo.filter !== 'none') {
-                  ctx.filter = photo.filter;
-                }
-                ctx.drawImage(img, positions[index][0], positions[index][1], imageSize, imageSize);
-                ctx.restore();
-                
-                // When the last image is drawn, trigger download
-                if (index === photos.length - 1) {
-                  const link = document.createElement('a');
-                  link.download = `collage-${Date.now()}.jpg`;
-                  link.href = collageCanvas.toDataURL('image/jpeg', 0.9);
-                  link.click();
-                }
-              };
-              img.src = photo.url;
-            }
-          });
-        } else if (collageLayout === '1+2') {
-          width = 1080;
-          height = 1080;
-          collageCanvas.width = width;
-          collageCanvas.height = height;
-          
-          // Draw white background
-          ctx.fillStyle = 'white';
-          ctx.fillRect(0, 0, width, height);
-          
-          // Draw first image (large)
-          if (photos[0]) {
-            const img = new Image();
-            img.onload = () => {
-              ctx.save();
-              if (photos[0].filter !== 'none') {
-                ctx.filter = photos[0].filter;
-              }
-              ctx.drawImage(img, 0, 0, width, height/2);
-              ctx.restore();
-            };
-            img.src = photos[0].url;
-          }
-          
-          // Draw second and third images (smaller)
-          const smallWidth = width / 2;
-          if (photos[1]) {
-            const img = new Image();
-            img.onload = () => {
-              ctx.save();
-              if (photos[1].filter !== 'none') {
-                ctx.filter = photos[1].filter;
-              }
-              ctx.drawImage(img, 0, height/2, smallWidth, height/2);
-              ctx.restore();
-            };
-            img.src = photos[1].url;
-          }
-          
-          if (photos[2]) {
-            const img = new Image();
-            img.onload = () => {
-              ctx.save();
-              if (photos[2].filter !== 'none') {
-                ctx.filter = photos[2].filter;
-              }
-              ctx.drawImage(img, smallWidth, height/2, smallWidth, height/2);
-              ctx.restore();
-              
-              // When all images are drawn, trigger download
-              const link = document.createElement('a');
-              link.download = `collage-${Date.now()}.jpg`;
-              link.href = collageCanvas.toDataURL('image/jpeg', 0.9);
-              link.click();
-            };
-            img.src = photos[2].url;
-          }
-        } else if (collageLayout === '3x1') {
-          width = 1080;
-          height = 1080;
-          collageCanvas.width = width;
-          collageCanvas.height = height;
-          
-          // Draw white background
-          ctx.fillStyle = 'white';
-          ctx.fillRect(0, 0, width, height);
-          
-          const imageHeight = height / 3;
-          
-          photos.forEach((photo, index) => {
-            if (index < 3) {
-              const img = new Image();
-              img.onload = () => {
-                ctx.save();
-                if (photo.filter !== 'none') {
-                  ctx.filter = photo.filter;
-                }
-                ctx.drawImage(img, 0, index * imageHeight, width, imageHeight);
-                ctx.restore();
-                
-                // When the last image is drawn, trigger download
-                if (index === photos.length - 1) {
-                  const link = document.createElement('a');
-                  link.download = `collage-${Date.now()}.jpg`;
-                  link.href = collageCanvas.toDataURL('image/jpeg', 0.9);
-                  link.click();
-                }
-              };
-              img.src = photo.url;
-            }
-          });
-        } else if (collageLayout === '2x1') {
-          width = 1080;
-          height = 540;
-          collageCanvas.width = width;
-          collageCanvas.height = height;
-          
-          // Draw white background
-          ctx.fillStyle = 'white';
-          ctx.fillRect(0, 0, width, height);
-          
-          const imageWidth = width / 2;
-          
-          photos.forEach((photo, index) => {
-            if (index < 2) {
-              const img = new Image();
-              img.onload = () => {
-                ctx.save();
-                if (photo.filter !== 'none') {
-                  ctx.filter = photo.filter;
-                }
-                ctx.drawImage(img, index * imageWidth, 0, imageWidth, height);
-                ctx.restore();
-                
-                // When the last image is drawn, trigger download
-                if (index === photos.length - 1) {
-                  const link = document.createElement('a');
-                  link.download = `collage-${Date.now()}.jpg`;
-                  link.href = collageCanvas.toDataURL('image/jpeg', 0.9);
-                  link.click();
-                }
-              };
-              img.src = photo.url;
-            }
-          });
-        }
-        
-        // Save collage to gallery
-        const savedPhotos = JSON.parse(localStorage.getItem('photos') || '[]');
-        setTimeout(() => {
-          savedPhotos.push({ 
-            id: Date.now(), 
-            url: collageCanvas.toDataURL('image/jpeg', 0.9),
-            isCollage: true 
-          });
-          localStorage.setItem('photos', JSON.stringify(savedPhotos));
-        }, 500); // Give time for canvas to render
-        
-      } else {
-        // For single photo, download directly
-        const link = document.createElement('a');
-        link.download = `photobooth-${Date.now()}.jpg`;
-        link.href = photos[0].url;
-        link.click();
-      }
+  if (photos.length === 0) return;
+
+  if (collageMode && photos.length > 1) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let canvasWidth, canvasHeight;
+
+    // UKURAN CANVAS YANG BENAR-BENAR SESUAI LAYOUT (Instagram Standard)
+    switch (collageLayout) {
+      case '2x2':
+      case '1+2':
+        canvasWidth = 1080;
+        canvasHeight = 1080;
+        break;
+      case '3x1':
+        canvasWidth = 1080;
+        canvasHeight = 1350; // Lebih realistis daripada 1440
+        break;
+      case '2x1':
+        canvasWidth = 1080;
+        canvasHeight = 540;
+        break;
+      default:
+        canvasWidth = 1080;
+        canvasHeight = 1080;
     }
-  };
+
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+
+    // Background putih
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    // FUNGSI DRAW DENGAN COVER (seperti object-cover di CSS)
+    const drawImageCover = (img, x, y, w, h) => {
+      const imgRatio = img.naturalWidth / img.naturalHeight;
+      const boxRatio = w / h;
+
+      let sx, sy, sWidth, sHeight;
+
+      if (imgRatio > boxRatio) {
+        // Gambar lebih lebar → crop kiri-kanan
+        sHeight = img.naturalHeight;
+        sWidth = img.naturalHeight * boxRatio;
+        sx = (img.naturalWidth - sWidth) / 2;
+        sy = 0;
+      } else {
+        // Gambar lebih tinggi → crop atas-bawah
+        sWidth = img.naturalWidth;
+        sHeight = img.naturalWidth / boxRatio;
+        sx = 0;
+        sy = (img.naturalHeight - sHeight) / 2;
+      }
+
+      ctx.drawImage(img, sx, sy, sWidth, sHeight, x, y, w, h);
+    };
+
+    let loadedCount = 0;
+    const maxPhotos = collageLayouts.find(l => l.value === collageLayout)?.slots || 4;
+
+    photos.slice(0, maxPhotos).forEach((photo, index) => {
+      const img = new Image();
+      img.onload = () => {
+        ctx.save();
+        if (photo.filter && photo.filter !== 'none') {
+          ctx.filter = photo.filter;
+        }
+
+        if (collageLayout === '2x2') {
+          const size = canvasWidth / 2;
+          const pos = [[0,0], [size,0], [0,size], [size,size]];
+          drawImageCover(img, ...pos[index], size, size);
+        }
+        else if (collageLayout === '1+2') {
+          if (index === 0) drawImageCover(img, 0, 0, canvasWidth, canvasHeight/2);
+          if (index === 1) drawImageCover(img, 0, canvasHeight/2, canvasWidth/2, canvasHeight/2);
+          if (index === 2) drawImageCover(img, canvasWidth/2, canvasHeight/2, canvasWidth/2, canvasHeight/2);
+        }
+        else if (collageLayout === '3x1') {
+          const h = canvasHeight / 3;
+          drawImageCover(img, 0, index * h, canvasWidth, h);
+        }
+        else if (collageLayout === '2x1') {
+          const w = canvasWidth / 2;
+          // INI YANG PALING PENTING UNTUK 2x1:
+          drawImageCover(img, index * w, 0, w, canvasHeight);
+        }
+
+        ctx.restore();
+
+        loadedCount++;
+        if (loadedCount === photos.slice(0, maxPhotos).length) {
+          // SEMUA SELESAI → DOWNLOAD
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+          const link = document.createElement('a');
+          link.download = `collage-${collageLayout}-${Date.now()}.jpg`;
+          link.href = dataUrl;
+          link.click();
+
+          // Simpan ke gallery
+          const saved = JSON.parse(localStorage.getItem('photos') || '[]');
+          saved.unshift({ id: Date.now(), url: dataUrl, isCollage: true, layout: collageLayout });
+          localStorage.setItem('photos', JSON.stringify(saved));
+        }
+      };
+      img.src = photo.url;
+    });
+
+  } else {
+    // Single photo
+    const link = document.createElement('a');
+    link.download = `photo-${Date.now()}.jpg`;
+    link.href = photos[0].url;
+    link.click();
+  }
+};
 
   const retake = () => {
     if (collageMode) {
